@@ -1,0 +1,61 @@
+/*
+*/
+SELECT reports_to AS employee_id
+FROM employee
+GROUP BY reports_to
+HAVING COUNT(employee_id) >= 2
+ORDER BY reports_to;
+
+SELECT SUM(invoice_line.unit_price * invoice_line.Quantity) AS total_revenue
+FROM invoice_line
+JOIN track ON invoice_line.Track_id = track.track_id
+JOIN media_type ON track.media_type_id = media_type.media_type_id
+JOIN invoice ON invoice_line.invoice_id = invoice.invoice_id
+WHERE media_type.media_type_id = '3'
+AND EXTRACT(YEAR FROM invoice.Invoice_date) = 2024;
+
+SELECT t.composer, COUNT(DISTINCT pl.Playlist_id) AS distinct_playlists, STRING_AGG(pl.name, ', ') AS list_of_playlists
+FROM Track t
+JOIN Playlist_Track pt ON t.track_id = pt.Track_id
+JOIN Playlist pl ON pt.Playlist_id = pl.Playlist_id
+WHERE t.composer IS NOT NULL
+    AND pl.name LIKE '%Classical%'
+GROUP BY t.composer;
+
+
+WITH yearly_spending AS (
+    SELECT 
+        invoice.customer_id AS customer_id, 
+        EXTRACT(YEAR FROM invoice.invoice_date) AS year, 
+        SUM(invoice_line.unit_price * invoice_line.quantity) AS total_spending
+    FROM 
+        invoice_line
+    JOIN 
+        invoice ON invoice_line.invoice_Id = invoice.invoice_id
+    WHERE 
+        EXTRACT(YEAR FROM invoice.invoice_date) < 2025
+    GROUP BY 
+        invoice.customer_Id, 
+        EXTRACT(YEAR FROM invoice.invoice_date)
+),
+increasing_spending AS (
+    SELECT 
+        customer_id, 
+        year, 
+        total_spending, 
+        LAG(total_spending) OVER (PARTITION BY customer_id ORDER BY year) AS previous_spending
+    FROM 
+        yearly_spending
+)
+SELECT 
+    customer_id
+FROM 
+    increasing_spending
+WHERE 
+    total_spending > COALESCE(previous_spending, 0)
+GROUP BY 
+    customer_id
+HAVING 
+    COUNT(*) = (SELECT COUNT(DISTINCT year) FROM yearly_spending WHERE customer_id = increasing_spending.customer_id);
+
+/*
